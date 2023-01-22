@@ -1,3 +1,3 @@
-module LLKV
+module llkv
 
 go 1.19
