@@ -8,11 +8,6 @@ import (
 
 type Filter []byte
 
-const (
-	seed = 0xbc9f1d34
-	m    = 0xc6a4a793
-)
-
 type BloomFilter struct {
 	f Filter
 	k uint8
