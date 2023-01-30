@@ -1,3 +1,3 @@
-module llkv
+module miniKV
 
 go 1.19
