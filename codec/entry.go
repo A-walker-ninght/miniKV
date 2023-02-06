@@ -1,37 +1,17 @@
 package codec
 
-const (
-	seed = 0xbc9f1d34
-	m    = 0xc6a4a793
-)
-
+// 上层
 type Entry struct {
-	Key   []byte
-	Value []byte
+	Key     string
+	Value   []byte
+	Deleted bool // 该数据是否已经被删除
+	Version int64
 }
 
-func KeyToHash(key []byte) uint32 {
-	return hash(key)
-}
-
-func hash(b []byte) uint32 {
-	h := uint32(seed) ^ uint32(len(b))*m
-	for ; len(b) >= 4; b = b[4:] {
-		h += uint32(b[0]) | uint32(b[1])<<8 | uint32(b[2])<<16 | uint32(b[3])<<24
-		h *= m
-		h ^= h >> 16
+func NewEntry(key string, value []byte) Entry {
+	e := Entry{
+		Key:   key,
+		Value: value,
 	}
-	switch len(b) {
-	case 3:
-		h += uint32(b[2]) << 16
-		fallthrough
-	case 2:
-		h += uint32(b[1]) << 8
-		fallthrough
-	case 1:
-		h += uint32(b[0])
-		h *= m
-		h ^= h >> 24
-	}
-	return h
+	return e
 }
