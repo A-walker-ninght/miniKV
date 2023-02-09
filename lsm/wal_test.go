@@ -12,7 +12,7 @@ import (
 func TestWalBasic(t *testing.T) {
 	key, val := "", ""
 	w := &Wal{}
-	s := w.InitWal("./wal", 10000)
+	s := w.InitWal(10000)
 
 	keys := []string{}
 	for i := 0; i < 1000; i++ {
@@ -29,7 +29,7 @@ func TestWalBasic(t *testing.T) {
 	w.f.(*file.MMapFile).Sync()
 
 	// 恢复recovery
-	newSl := w.InitWal("./wal", 1000)
+	newSl := w.InitWal(1000)
 	for _, key := range keys {
 		assert.Equal(t, newSl.Search(key), s.Search(key))
 	}

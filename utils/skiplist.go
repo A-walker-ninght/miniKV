@@ -100,6 +100,72 @@ func (s *Skiplist) Search(key string) *codec.Entry {
 	return nil
 }
 
+func (s *Skiplist) Delete(key string) *codec.Entry {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	head := s.header
+	prev := head
+	prevs := make([]*Node, maxLevel)
+	isDelete := false
+	for i := maxLevel - 1; i >= 0; i-- {
+		for next := prev.levels[i]; next != nil; next = next.levels[i] {
+			if comp := strings.Compare(key, next.entry.Key); comp >= 0 {
+				if comp == 0 {
+					// 更新数据
+					if next.entry.Deleted == true {
+						break
+					}
+					next.entry.Deleted = true
+					isDelete = true
+					break
+				} else {
+					prev = next
+				}
+			} else {
+				break
+			}
+		}
+		prevs[i] = prev
+	}
+	if !isDelete {
+		return nil
+	}
+	return prevs[0].levels[0].entry
+}
+
+func (s *Skiplist) Range(minKey string, maxKey string) (entrys []*codec.Entry) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	head := s.header
+	prev := head
+
+	for i := maxLevel - 1; i >= 0; i-- {
+		for next := prev.levels[i]; next != nil; next = next.levels[i] {
+			if comp := strings.Compare(minKey, next.entry.Key); comp >= 0 {
+				if comp == 0 {
+					break
+				} else {
+					prev = next
+				}
+			} else {
+				break
+			}
+		}
+	}
+	for prev.levels[0] != nil && prev.levels[0].entry.Key >= minKey &&
+		prev.levels[0].entry.Key <= maxKey && !prev.levels[0].entry.Deleted {
+		entrys = append(entrys, prev.levels[0].entry)
+	}
+	return
+}
+
+func (s *Skiplist) GetCount() int {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	return s.length
+}
+
 func (s *Skiplist) findNode(key string) *Node {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
