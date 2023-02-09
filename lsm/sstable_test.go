@@ -1,10 +1,10 @@
 package lsm
 
 import (
-	"encoding/json"
-	"fmt"
+	// "encoding/json"
+	// "fmt"
 	"github.com/A-walker-ninght/miniKV/codec"
-	"github.com/A-walker-ninght/miniKV/file"
+	// "github.com/A-walker-ninght/miniKV/file"
 	"github.com/A-walker-ninght/miniKV/utils"
 	"github.com/stretchr/testify/assert"
 	"math/rand"
@@ -39,15 +39,15 @@ func TestSSTableBasic(t *testing.T) {
 	for iter.First(); iter.Valid(); iter.Next() {
 		entrys = append(entrys, iter.Entry())
 	}
-	sst, err := CreateNewSSTable(entrys, "./sst.txt", int64(100000000))
+	_, err := CreateNewSSTable(entrys, "./sst.txt", int64(100))
 	if err != nil {
 		t.Errorf("OpenSSTable False!")
 	}
-	fmt.Printf("filepath: %v\n, idxArea: %v\n, lock: %v\n, p: %v\n, meta: %v\n",
-		sst.filePath, sst.idxArea, sst.lock, sst.p, sst.meta)
-	buf := make([]byte, 10)
-	n, _ := sst.f.(*file.MMapFile).Read(buf, 100000)
-	var idx IdxArea
-	json.Unmarshal(buf[:n], &idx)
-	fmt.Printf("idxArea: %+v", sst.idxArea)
+	// fmt.Printf("filepath: %v\n, idxArea: %v\n, lock: %v\n, p: %v\n, meta: %v\n",
+	// 	sst.filePath, sst.idxArea, sst.lock, sst.p, sst.meta)
+	// buf := make([]byte, 10)
+	// n, _ := sst.f.(*file.MMapFile).Read(buf, 100000)
+	// var idx IdxArea
+	// json.Unmarshal(buf[:n], &idx)
+	// fmt.Printf("idxArea: %+v", sst.idxArea)
 }

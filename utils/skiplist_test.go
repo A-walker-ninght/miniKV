@@ -32,6 +32,10 @@ func TestSkipListBasicCRUD(t *testing.T) {
 	assert.Nil(t, list.Add(&entry2))
 	assert.Equal(t, entry2.Value, list.Search(entry2.Key).Value)
 
+	// 删除
+	list.Delete(entry1.Key)
+
+	assert.Equal(t, entry1.Deleted, list.Search(entry1.Key).Deleted)
 	// 查找不存在的key
 	assert.Nil(t, list.Search("notExist"))
 

@@ -16,6 +16,13 @@ type levelPath struct {
 	SSTablePaths []string
 }
 
+func NewLevelFile(levelNum int) *levelFile {
+	return &levelFile{
+		f:      &os.File{},
+		levels: make([]levelPath, levelNum),
+	}
+}
+
 func (l *levelFile) InitLevelFile(filepath string) error {
 	fd, err := os.OpenFile(filepath, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
