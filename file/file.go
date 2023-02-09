@@ -8,6 +8,8 @@ type IOSelector interface {
 	Delete() error
 	Write(buf []byte, offset int64) (int, error)
 	Read(buf []byte, offset int64) (int, error)
+	Truncature(size int64) error
+	Size() int64
 }
 
 func openFile(fName string, fsize int64) (*os.File, error) {

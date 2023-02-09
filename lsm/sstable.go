@@ -25,10 +25,13 @@ import (
 type SSTable struct {
 	f        file.IOSelector // 文件句柄
 	filePath string          // 路径
+	p        int64           // 文件指针
 	idxArea  IdxArea         // 索引区
+	size     int64
 	lock     *sync.RWMutex
-	p        int64 // 文件指针
 	meta     MetaInfo
+	maxKey   string
+	minKey   string
 }
 
 type IdxArea struct {
@@ -53,7 +56,7 @@ type Position struct {
 
 // 创建sst文件，写入磁盘，同时保存结构体
 func CreateNewSSTable(data []*codec.Entry, filepath string, size int64) (*SSTable, error) {
-	fd, err := file.NewMMapFile(filepath, size)
+	fd, err := file.OpenMMapFile(filepath, size)
 	if err != nil {
 		return nil, errors.New("Create SSTable False!")
 	}
@@ -62,11 +65,11 @@ func CreateNewSSTable(data []*codec.Entry, filepath string, size int64) (*SSTabl
 		filePath: filepath,
 		lock:     &sync.RWMutex{},
 	}
-	sst.InitSST(data)
+	sst.initSST(data)
 	return sst, nil
 }
 
-func (sst *SSTable) InitSST(data []*codec.Entry) {
+func (sst *SSTable) initSST(data []*codec.Entry) {
 	keys := make([]string, 0)
 	poss := make(map[string]Position, 0)
 	door := utils.NewFilter(len(data), 0.01)
@@ -104,6 +107,8 @@ func (sst *SSTable) InitSST(data []*codec.Entry) {
 		door: door,
 		keys: keys,
 	}
+	sst.minKey = idxArea.keys[0]
+	sst.maxKey = idxArea.keys[len(idxArea.keys)-1]
 	sst.idxArea = idxArea
 	idx, err := json.Marshal(idxArea)
 	if err != nil {
@@ -122,13 +127,12 @@ func (sst *SSTable) InitSST(data []*codec.Entry) {
 	sst.meta = meta
 	// meta
 	metaBuf := make([]byte, 40)
-	l := 0
-	l += binary.PutVarint(metaBuf, meta.dataStart)
-	l += binary.PutVarint(metaBuf, meta.dataLen)
-	l += binary.PutVarint(metaBuf, meta.idxStart)
-	l += binary.PutVarint(metaBuf, meta.idxLen)
-	l += binary.PutVarint(metaBuf, meta.version)
-	_, err = sst.f.(*file.MMapFile).Write(metaBuf[:l], sst.p)
+	binary.BigEndian.PutUint64(metaBuf[:8], uint64(meta.dataStart))
+	binary.BigEndian.PutUint64(metaBuf[8:16], uint64(meta.dataLen))
+	binary.BigEndian.PutUint64(metaBuf[16:24], uint64(meta.idxStart))
+	binary.BigEndian.PutUint64(metaBuf[24:32], uint64(meta.idxLen))
+	binary.BigEndian.PutUint64(metaBuf[32:40], uint64(meta.version))
+	_, err = sst.f.(*file.MMapFile).Write(metaBuf, sst.p)
 
 	if err != nil {
 		log.Printf("MetaInfo Write Buffer False: %s", err)
@@ -139,4 +143,12 @@ func (sst *SSTable) InitSST(data []*codec.Entry) {
 	if err != nil {
 		log.Printf("Buffer Write To File False: %s", err)
 	}
+}
+
+func (sst *SSTable) Remove() error {
+	return sst.f.(*file.MMapFile).Delete()
+}
+
+func (sst *SSTable) Size() int64 {
+	return sst.size
 }

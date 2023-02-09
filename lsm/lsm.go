@@ -1,8 +1,7 @@
 package lsm
 
 type LSM struct {
-	mem   *memtable
-	immem []*memtable
+	mem   *Memtable
+	immem []*Memtable
 	level *levelManager
-	
 }
