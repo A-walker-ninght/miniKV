@@ -1,7 +1,5 @@
 package codec
 
-import "encoding/binary"
-
 type Entry struct {
 	Key     string
 	Value   []byte
@@ -9,36 +7,11 @@ type Entry struct {
 	Version int64
 }
 
-func NewEntry(key string, value []byte) Entry {
+func NewEntry(key string, value []byte, version int64) Entry {
 	e := Entry{
-		Key:   key,
-		Value: value,
+		Key:     key,
+		Value:   value,
+		Version: version,
 	}
 	return e
-}
-
-func ValueToBytes(value interface{}) []byte {
-	if value == nil {
-		return []byte{}
-	}
-	switch k := value.(type) {
-	case string:
-		return []byte(k)
-	case []byte:
-		return k
-	case int16:
-		b := make([]byte, 2)
-		binary.BigEndian.PutUint16(b, uint16(k))
-		return b
-	case int32:
-		b := make([]byte, 4)
-		binary.BigEndian.PutUint32(b, uint32(k))
-		return b
-	case int64:
-		b := make([]byte, 8)
-		binary.BigEndian.PutUint64(b, uint64(k))
-		return b
-	default:
-		panic("Value type not supported")
-	}
 }

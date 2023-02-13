@@ -4,7 +4,9 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
+	"os"
 	"sync"
 
 	"github.com/A-walker-ninght/miniKV/codec"
@@ -35,9 +37,9 @@ type SSTable struct {
 }
 
 type IdxArea struct {
-	pos  map[string]Position // key: Position
-	keys []string            // 按key大小排序
-	door *utils.BloomFilter  // 通过布隆过滤器快速判断key是否在sst
+	Pos  map[string]Position // key: Position
+	Keys []string            // 按key大小排序
+	Door *utils.BloomFilter  // 通过布隆过滤器快速判断key是否在sst
 }
 
 type MetaInfo struct {
@@ -52,10 +54,56 @@ type Position struct {
 	Offset  int64 // 起始索引
 	Len     int   // 长度
 	Deleted bool  // Key 已经被删除
+	Version int64
+}
+
+func OpenSSTable(filepath string) (*SSTable, error) {
+	info, _ := os.Stat(filepath)
+	if info == nil {
+		return nil, errors.New("The SSTable file is not exist!")
+	}
+	fd, err := file.OpenMMapFile(filepath, info.Size())
+
+	if err != nil {
+		return nil, errors.New("Create SSTable False!")
+	}
+
+	sst := &SSTable{
+		f:        fd,
+		filePath: filepath,
+		lock:     &sync.RWMutex{},
+		size:     info.Size(),
+	}
+	sst.openSSTable()
+	return sst, nil
+}
+
+func (sst *SSTable) openSSTable() {
+	metaBuf := make([]byte, 40)
+	sst.f.(*file.MMapFile).Read(metaBuf, sst.size-40)
+	sst.meta.dataStart = int64(binary.BigEndian.Uint64(metaBuf[:8]))
+	sst.meta.dataLen = int64(binary.BigEndian.Uint64(metaBuf[8:16]))
+	sst.meta.idxStart = int64(binary.BigEndian.Uint64(metaBuf[16:24]))
+	sst.meta.idxLen = int64(binary.BigEndian.Uint64(metaBuf[24:32]))
+	sst.meta.version = int64(binary.BigEndian.Uint64(metaBuf[32:40]))
+
+	// 索引区
+	idxArea := make([]byte, sst.meta.idxLen)
+	sst.f.(*file.MMapFile).Read(idxArea, sst.meta.idxStart)
+
+	var idx IdxArea
+	err := json.Unmarshal(idxArea, &idx)
+	if err != nil {
+		fmt.Errorf("OpenSSTable idxArea Unmarshal False: %s", err)
+		return
+	}
+	sst.idxArea = idx
+	sst.minKey = sst.idxArea.Keys[0]
+	sst.maxKey = sst.idxArea.Keys[len(sst.idxArea.Keys)-1]
 }
 
 // 创建sst文件，写入磁盘，同时保存结构体
-func CreateNewSSTable(data []*codec.Entry, filepath string, size int64) (*SSTable, error) {
+func CreateNewSSTable(data []codec.Entry, filepath string, size int64) (*SSTable, error) {
 	fd, err := file.OpenMMapFile(filepath, size)
 	if err != nil {
 		return nil, errors.New("Create SSTable False!")
@@ -69,17 +117,20 @@ func CreateNewSSTable(data []*codec.Entry, filepath string, size int64) (*SSTabl
 	return sst, nil
 }
 
-func (sst *SSTable) initSST(data []*codec.Entry) {
+func (sst *SSTable) initSST(data []codec.Entry) {
+	if len(data) == 0 {
+		return
+	}
 	keys := make([]string, 0)
 	poss := make(map[string]Position, 0)
 	door := utils.NewFilter(len(data), 0.01)
-
 	for _, e := range data {
 		keys = append(keys, e.Key)
 		pos := Position{
 			Offset:  sst.p,
 			Len:     len(e.Value),
 			Deleted: e.Deleted,
+			Version: e.Version,
 		}
 		poss[e.Key] = pos
 		if !door.Insert(e.Key) {
@@ -103,12 +154,12 @@ func (sst *SSTable) initSST(data []*codec.Entry) {
 
 	// idxArea
 	idxArea := IdxArea{
-		pos:  poss,
-		door: door,
-		keys: keys,
+		Pos:  poss,
+		Door: door,
+		Keys: keys,
 	}
-	sst.minKey = idxArea.keys[0]
-	sst.maxKey = idxArea.keys[len(idxArea.keys)-1]
+	sst.minKey = idxArea.Keys[0]
+	sst.maxKey = idxArea.Keys[len(idxArea.Keys)-1]
 	sst.idxArea = idxArea
 	idx, err := json.Marshal(idxArea)
 	if err != nil {
@@ -121,8 +172,7 @@ func (sst *SSTable) initSST(data []*codec.Entry) {
 		return
 	}
 	sst.p += int64(n)
-	meta.idxLen = sst.p
-	meta.version = 0
+	meta.idxLen = int64(n)
 
 	sst.meta = meta
 	// meta
@@ -138,17 +188,25 @@ func (sst *SSTable) initSST(data []*codec.Entry) {
 		log.Printf("MetaInfo Write Buffer False: %s", err)
 		return
 	}
+	sst.f.(*file.MMapFile).Truncature(sst.p + 40)
 	// 写入磁盘
 	err = sst.f.(*file.MMapFile).Sync()
 	if err != nil {
 		log.Printf("Buffer Write To File False: %s", err)
 	}
+	sst.size = sst.f.(*file.MMapFile).Size()
 }
 
 func (sst *SSTable) Remove() error {
+	if sst == nil {
+		return errors.New("sst file is not exist!")
+	}
 	return sst.f.(*file.MMapFile).Delete()
 }
 
 func (sst *SSTable) Size() int64 {
-	return sst.size
+	if sst == nil {
+		return 0
+	}
+	return sst.f.(*file.MMapFile).Size()
 }

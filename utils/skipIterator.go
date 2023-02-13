@@ -37,5 +37,5 @@ func (s *SkiplistInterator) Seek(key string) {
 	if !s.Valid() {
 		return
 	}
-	s.n = s.list.findNode(key)
+	s.n = s.list.FindNode(key)
 }

@@ -12,8 +12,8 @@ const (
 type Filter []byte
 
 type BloomFilter struct {
-	f Filter
-	k uint8
+	F Filter
+	K uint8
 }
 
 // m, n, fp, k: 位数组大小，插入元素个数，误报率，哈希函数个数
@@ -27,7 +27,7 @@ func NewFilter(n int, fp float64) *BloomFilter {
 	if k > 30 {
 		k = 30
 	}
-	b.k = uint8(k)
+	b.K = uint8(k)
 	nBits := bitsPerKey * n
 	if nBits < 64 {
 		nBits = 64
@@ -36,13 +36,13 @@ func NewFilter(n int, fp float64) *BloomFilter {
 	nBits = nBytes * 8
 	filter := make([]byte, nBytes+1)
 	filter[nBytes] = uint8(k) // 最后一位存k
-	b.f = filter
+	b.F = filter
 	return b
 }
 
 // 插入key
 func (b *BloomFilter) Insert(key string) bool {
-	k := b.k
+	k := b.K
 	if k > 30 {
 		return true
 	}
@@ -51,7 +51,7 @@ func (b *BloomFilter) Insert(key string) bool {
 	delta := h>>17 | h<<15
 	for i := uint8(0); i < k; i++ {
 		pos := h % uint32(nBits)
-		b.f[pos/8] |= 1 << (pos % 8)
+		b.F[pos/8] |= 1 << (pos % 8)
 		h += delta
 	}
 	return true
@@ -62,7 +62,7 @@ func (b *BloomFilter) Check(key string) bool {
 	if b.Len() < 2 {
 		return false
 	}
-	k := b.k
+	k := b.K
 	if k > 30 {
 		return true
 	}
@@ -71,7 +71,7 @@ func (b *BloomFilter) Check(key string) bool {
 	delta := h>>17 | h<<15
 	for i := uint8(0); i < k; i++ {
 		pos := h % uint32(nBits)
-		if b.f[pos/8]&(1<<(pos%8)) == 0 {
+		if b.F[pos/8]&(1<<(pos%8)) == 0 {
 			return false
 		}
 		h += delta
@@ -83,13 +83,13 @@ func (b *BloomFilter) reset() {
 	if b == nil {
 		return
 	}
-	for i := range b.f {
-		b.f[i] = 0
+	for i := range b.F {
+		b.F[i] = 0
 	}
 }
 
 func (b *BloomFilter) Len() int32 {
-	return int32(len(b.f))
+	return int32(len(b.F))
 }
 
 // m := -1*n*lnp/(ln2)^2
