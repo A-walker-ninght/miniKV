@@ -4,88 +4,136 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"strconv"
+	"strings"
+
+	"github.com/A-walker-ninght/miniKV/file"
 )
 
 type levelFile struct {
-	f      *os.File
-	levels []levelPath
+	levelsfile []*levelfile
 }
 
-type levelPath struct {
+type levelfile struct {
+	f            file.IOSelector
+	filepath     string
 	SSTablePaths []string
+	p            int64 // 指针
 }
 
-func NewLevelFile(levelNum int) *levelFile {
-	return &levelFile{
-		f:      &os.File{},
-		levels: make([]levelPath, levelNum),
+func NewlevelFile(maxLv int) *levelFile {
+	lvF := &levelFile{
+		levelsfile: make([]*levelfile, maxLv),
+	}
+	lvF.initLevelFile(maxLv)
+	return lvF
+}
+
+func (l *levelFile) initLevelFile(maxlv int) {
+	lvs, _ := ioutil.ReadDir("../logFile/level/")
+	if len(lvs) == 0 {
+		for i := 0; i < maxlv; i++ {
+			filepath := strings.Builder{}
+			filepath.WriteString("../logFile/level/level_")
+			filepath.WriteString(strconv.Itoa(i))
+			filepath.WriteString(".log")
+			l.levelsfile[i] = newlevelfile(filepath.String())
+		}
+		return
+	}
+	for i, lv := range lvs {
+		filepath := strings.Builder{}
+		filepath.WriteString("../logFile/level/")
+		filepath.WriteString(lv.Name())
+		l.levelsfile[i] = newlevelfile(filepath.String())
+	}
+	return
+}
+
+func (l *levelFile) Write(sstpath string, lv int) {
+	l.levelsfile[lv].Write(sstpath)
+}
+
+func (l *levelFile) Clearlv(lv int) {
+	l.levelsfile[lv].Clear()
+}
+
+func newlevelfile(filepath string) *levelfile {
+	lv := &levelfile{
+		filepath: filepath,
+	}
+	lv.initlevelfile()
+	return lv
+}
+
+func (lf *levelfile) initlevelfile() {
+	stat, _ := os.Stat(lf.filepath)
+	var size int64
+	if stat == nil {
+		size = int64(1000)
+	} else {
+		size = stat.Size()
+	}
+	fd, err := file.OpenMMapFile(lf.filepath, size)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	lf.f = fd
+	lf.SSTablePaths = make([]string, 0)
+	for {
+		bufLen := make([]byte, 8)
+		n, _ := lf.f.(*file.MMapFile).Read(bufLen, lf.p)
+
+		if n == 0 {
+			break
+		}
+
+		lf.p += 8
+		length := int64(binary.BigEndian.Uint64(bufLen))
+		sstPath := make([]byte, length)
+		n, _ = lf.f.(*file.MMapFile).Read(sstPath, lf.p)
+		if n == 0 {
+			lf.p -= 8
+			break
+		}
+		var path string
+		json.Unmarshal(sstPath, &path)
+		lf.SSTablePaths = append(lf.SSTablePaths, path)
+		lf.p += int64(n)
 	}
 }
 
-func (l *levelFile) InitLevelFile(filepath string) error {
-	fd, err := os.OpenFile(filepath, os.O_CREATE|os.O_RDWR, 0666)
+func (lf *levelfile) Write(sstpath string) {
+	lf.SSTablePaths = append(lf.SSTablePaths, sstpath)
+	path, err := json.Marshal(sstpath)
 	if err != nil {
-		return err
+		fmt.Errorf("LevelFile levelfile Write False")
+		return
 	}
+	length := len(path)
+	lengthbuf := make([]byte, 8)
+	binary.BigEndian.PutUint64(lengthbuf, uint64(length))
+	lf.f.(*file.MMapFile).Write(lengthbuf, lf.p)
 
-	stat, err := fd.Stat()
-	if err != nil {
-		return err
+	lf.p += 8
+	n, _ := lf.f.(*file.MMapFile).Write(path, lf.p)
+	if n == 0 {
+		return
 	}
-
-	if err := fd.Truncate(stat.Size()); err != nil {
-		return err
-	}
-	l.f = fd
-
-	fileLenBuf := make([]byte, 8)
-	l.f.ReadAt(fileLenBuf, 0)
-	fileLen := int64(binary.BigEndian.Uint64(fileLenBuf))
-
-	levelsBuf := make([]byte, fileLen)
-	l.f.ReadAt(levelsBuf, 8)
-	var levels []levelPath
-	json.Unmarshal(levelsBuf, levels)
-	l.levels = levels
-	return nil
+	lf.p += int64(n)
+	err = lf.f.(*file.MMapFile).Sync()
 }
 
-func (l *levelFile) Sync() error {
-	levelsBuf, err := json.Marshal(l.levels)
+func (lf *levelfile) Clear() {
+	lf.f.(*file.MMapFile).Delete()
+	f, err := file.OpenMMapFile(lf.filepath, 1000)
 	if err != nil {
-		fmt.Errorf("levelFile Sync Marshal False: %s", err)
-		return err
+		fmt.Println(err)
 	}
-	levelLen := len(levelsBuf)
-	err = l.f.Truncate(0)
-	if err != nil {
-		fmt.Errorf("levelFile Sync Truncate False: %s", err)
-		return err
-	}
-	levelLenBuf := make([]byte, 8)
-	binary.BigEndian.PutUint64(levelLenBuf, uint64(levelLen))
-	_, err = l.f.WriteAt(levelLenBuf, 0)
-
-	if err != nil {
-		fmt.Errorf("levelFile Sync levelLen Write False: %s", err)
-		return err
-	}
-	_, err = l.f.WriteAt(levelsBuf, 8)
-	if err != nil {
-		fmt.Errorf("levelFile Sync levels Write False: %s", err)
-		return err
-	}
-	return nil
-}
-
-func (l *levelFile) Tables() []levelPath {
-	return l.levels
-}
-
-func (l *levelFile) Close() error {
-	if err := l.f.Close(); err != nil {
-		return err
-	}
-	return nil
+	lf.f = f
+	lf.SSTablePaths = make([]string, 0)
+	lf.p = 0
 }
