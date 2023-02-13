@@ -21,7 +21,7 @@ type Skiplist struct {
 	header   *Node
 	length   int
 	capacity int
-	lock     sync.RWMutex
+	lock     *sync.RWMutex
 	close    bool
 }
 
@@ -32,6 +32,10 @@ func newNode(entry *codec.Entry, level int) *Node {
 	}
 }
 
+func (n *Node) GetEntry() codec.Entry {
+	return *n.entry
+}
+
 func NewSkipList() *Skiplist {
 	header := &Node{
 		levels: make([]*Node, maxLevel),
@@ -39,13 +43,11 @@ func NewSkipList() *Skiplist {
 
 	return &Skiplist{
 		header: header,
+		lock:   &sync.RWMutex{},
 	}
 }
 
 func (s *Skiplist) Add(data *codec.Entry) error {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	head := s.header
 	prev := head
 	prevs := make([]*Node, maxLevel)
@@ -55,8 +57,10 @@ func (s *Skiplist) Add(data *codec.Entry) error {
 			if comp := strings.Compare(data.Key, next.entry.Key); comp >= 0 {
 				if comp == 0 {
 					// 更新数据
-					next.entry = data
-					return nil
+					if data.Version > next.entry.Version {
+						next.entry = data
+					}
+					break
 				} else {
 					prev = next
 				}
@@ -78,9 +82,10 @@ func (s *Skiplist) Add(data *codec.Entry) error {
 	return nil
 }
 
-func (s *Skiplist) Search(key string) *codec.Entry {
+func (s *Skiplist) Search(key string) (*codec.Entry, bool) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
+
 	head := s.header
 	prev := head
 
@@ -88,63 +93,10 @@ func (s *Skiplist) Search(key string) *codec.Entry {
 		for next := prev.levels[i]; next != nil; next = next.levels[i] {
 			if comp := strings.Compare(key, next.entry.Key); comp >= 0 {
 				if comp == 0 {
-					return next.entry
-				} else {
-					prev = next
-				}
-			} else {
-				break
-			}
-		}
-	}
-	return nil
-}
-
-func (s *Skiplist) Delete(key string) *codec.Entry {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	head := s.header
-	prev := head
-	prevs := make([]*Node, maxLevel)
-	isDelete := false
-	for i := maxLevel - 1; i >= 0; i-- {
-		for next := prev.levels[i]; next != nil; next = next.levels[i] {
-			if comp := strings.Compare(key, next.entry.Key); comp >= 0 {
-				if comp == 0 {
-					// 更新数据
-					if next.entry.Deleted == true {
-						break
+					if next.entry.Deleted {
+						return &codec.Entry{}, false
 					}
-					next.entry.Deleted = true
-					isDelete = true
-					break
-				} else {
-					prev = next
-				}
-			} else {
-				break
-			}
-		}
-		prevs[i] = prev
-	}
-	if !isDelete {
-		return nil
-	}
-	return prevs[0].levels[0].entry
-}
-
-func (s *Skiplist) Range(minKey string, maxKey string) (entrys []*codec.Entry) {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
-	head := s.header
-	prev := head
-
-	for i := maxLevel - 1; i >= 0; i-- {
-		for next := prev.levels[i]; next != nil; next = next.levels[i] {
-			if comp := strings.Compare(minKey, next.entry.Key); comp >= 0 {
-				if comp == 0 {
-					break
+					return next.entry, true
 				} else {
 					prev = next
 				}
@@ -153,11 +105,7 @@ func (s *Skiplist) Range(minKey string, maxKey string) (entrys []*codec.Entry) {
 			}
 		}
 	}
-	for prev.levels[0] != nil && prev.levels[0].entry.Key >= minKey &&
-		prev.levels[0].entry.Key <= maxKey && !prev.levels[0].entry.Deleted {
-		entrys = append(entrys, prev.levels[0].entry)
-	}
-	return
+	return &codec.Entry{}, false
 }
 
 func (s *Skiplist) GetCount() int {
@@ -166,9 +114,10 @@ func (s *Skiplist) GetCount() int {
 	return s.length
 }
 
-func (s *Skiplist) findNode(key string) *Node {
+func (s *Skiplist) FindNode(key string) *Node {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
+
 	head := s.header
 	prev := head
 	for i := maxLevel - 1; i >= 0; i-- {
@@ -188,6 +137,8 @@ func (s *Skiplist) findNode(key string) *Node {
 }
 
 func (s *Skiplist) NewSkiplistInterator() *SkiplistInterator {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	return &SkiplistInterator{
 		list: s,
 	}

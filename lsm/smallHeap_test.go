@@ -17,7 +17,7 @@ func TestSmallHeap(t *testing.T) {
 	data1 := []heapData{}
 	for i := 0; i < 1000; i++ {
 		key := fmt.Sprintf("key%d", i)
-		entry := codec.NewEntry(key, []byte(key))
+		entry := codec.NewEntry(key, []byte(key), int64(i))
 		h := heapData{&entry, i}
 		data1 = append(data1, h)
 	}
@@ -26,7 +26,7 @@ func TestSmallHeap(t *testing.T) {
 	newH := newHeap(1000)
 	for i := 999; i >= 0; i-- {
 		key := fmt.Sprintf("key%d", i)
-		entry := codec.NewEntry(key, []byte(key))
+		entry := codec.NewEntry(key, []byte(key), int64(i))
 		h := heapData{&entry, i}
 		newH.Push(h)
 

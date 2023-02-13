@@ -64,10 +64,11 @@ func (m *MMapFile) Sync() error {
 	if m == nil {
 		return nil
 	}
+
 	return Msync(m.buf)
 }
 
-const MB = 1 << 26 // 64MB
+const MB = 1 << 24 // 16MB
 
 // 写入一个buffer，空间不足则扩容
 func (m *MMapFile) Write(buf []byte, offset int64) (int, error) {
@@ -80,7 +81,7 @@ func (m *MMapFile) Write(buf []byte, offset int64) (int, error) {
 		return 0, io.EOF
 	}
 	// 扩容
-	if length+offset > m.cap {
+	for length+offset > m.cap {
 		growBy := len(m.buf)
 		if growBy > MB {
 			growBy = MB

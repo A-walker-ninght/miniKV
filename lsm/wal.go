@@ -6,13 +6,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/A-walker-ninght/miniKV/codec"
-	"github.com/A-walker-ninght/miniKV/config"
 	"github.com/A-walker-ninght/miniKV/file"
 	"github.com/A-walker-ninght/miniKV/utils"
 )
@@ -27,35 +24,25 @@ type Wal struct {
 }
 
 // 从磁盘读取，初始化Wal
-func (w *Wal) InitWal(filesize int64) *utils.Skiplist {
+func (w *Wal) InitWal(filesize int64, filepath string) *utils.Skiplist {
 	log.Printf("Loading wal.log")
 	start := time.Now()
-	dir := config.CheckConfig().WalDir
 	defer func() {
 		end := time.Since(start)
 		log.Printf("Loading wal.log consume time: %v\n", end)
 	}()
-
-	s := strings.Builder{}
-	s.WriteString(dir)
-	s.WriteString("wal.log")
-	walPath := s.String()
-
 	// 获取信息
-	info, err := os.Stat(w.filepath)
-	if err != nil {
-		fmt.Errorf("Wal filePath InValid: %s", w.filepath)
-	}
-
+	w.filepath = filepath
+	info, _ := os.Stat(w.filepath)
 	// info为空，创建wal
 	if info == nil {
-		fd, err := file.OpenMMapFile(walPath, filesize)
+		fd, err := file.OpenMMapFile(filepath, filesize)
 		if err != nil {
 			fmt.Errorf("Open Wal False: %s", err)
 			return nil
 		}
 		w.f = fd
-		w.filepath = walPath
+		w.filepath = filepath
 		w.lock = &sync.RWMutex{}
 		return w.recovery(true)
 	}
@@ -65,14 +52,14 @@ func (w *Wal) InitWal(filesize int64) *utils.Skiplist {
 	if size > filesize {
 		filesize = size
 	}
-	fd, err := file.OpenMMapFile(walPath, filesize)
+	fd, err := file.OpenMMapFile(filepath, filesize)
 	if err != nil {
 		fmt.Errorf("Open Wal False: %s", err)
 		return nil
 	}
 
 	w.f = fd
-	w.filepath = walPath
+	w.filepath = filepath
 	w.lock = &sync.RWMutex{}
 
 	return w.recovery(false)
@@ -94,31 +81,25 @@ func (w *Wal) recovery(isCreate bool) *utils.Skiplist {
 	for {
 		var e *codec.Entry
 		dataLenBuf := make([]byte, 8)
-		n, err := w.f.(*file.MMapFile).Read(dataLenBuf, p)
-		if err != nil {
-			fmt.Errorf("dataLen Read False: %s", err)
+		n, _ := w.f.(*file.MMapFile).Read(dataLenBuf, p)
+		if n == 0 {
+			break
 		}
 
 		p += 8
 		dataLen = int64(binary.BigEndian.Uint64(dataLenBuf))
 
 		data := make([]byte, dataLen)
-		n, err = w.f.(*file.MMapFile).Read(data, p)
+		n, _ = w.f.(*file.MMapFile).Read(data, p)
 		if n == 0 {
+			p -= 8
 			break
 		}
-		if err != nil {
-			fmt.Errorf("data Read False: %s", err)
-		}
-		err = json.Unmarshal(data, &e)
+		err := json.Unmarshal(data, &e)
 		if err != nil {
 			fmt.Errorf("data Unmarshal False: %s", err)
 		}
-		if e.Deleted {
-			sl.Delete(e.Key)
-		} else {
-			sl.Add(e)
-		}
+		sl.Add(e)
 		p += int64(n)
 	}
 	w.p = p
@@ -162,22 +143,4 @@ func (w *Wal) Reset() error {
 		fmt.Errorf("Wal Reset False: %s", err)
 	}
 	return err
-}
-
-func (w *Wal) ReName(id int) {
-	w.f.(*file.MMapFile).Close()
-
-	filepaths := strings.Split(w.filepath, "/")
-	s := strings.Builder{}
-	s.WriteString("wal_")
-	s.WriteString(strconv.Itoa(id))
-	s.WriteString(".iog")
-	filepaths[len(filepaths)-1] = s.String()
-	path := strings.Join(filepaths, "/")
-
-	err := os.Rename(w.filepath, path)
-	if err != nil {
-		fmt.Printf("wal rename false")
-	}
-	w.filepath = path
 }
