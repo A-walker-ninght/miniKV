@@ -1,17 +1,23 @@
 package codec
 
+type Status int
+
+const (
+	Found Status = iota
+	NotFound
+	Deleted
+)
+
 type Entry struct {
 	Key     string
 	Value   []byte
 	Deleted bool // 该数据是否已经被删除
-	Version int64
 }
 
-func NewEntry(key string, value []byte, version int64) Entry {
+func NewEntry(key string, value []byte) Entry {
 	e := Entry{
-		Key:     key,
-		Value:   value,
-		Version: version,
+		Key:   key,
+		Value: value,
 	}
 	return e
 }

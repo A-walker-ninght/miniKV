@@ -54,7 +54,6 @@ type Position struct {
 	Offset  int64 // 起始索引
 	Len     int   // 长度
 	Deleted bool  // Key 已经被删除
-	Version int64
 }
 
 func OpenSSTable(filepath string) (*SSTable, error) {
@@ -130,7 +129,6 @@ func (sst *SSTable) initSST(data []codec.Entry) {
 			Offset:  sst.p,
 			Len:     len(e.Value),
 			Deleted: e.Deleted,
-			Version: e.Version,
 		}
 		poss[e.Key] = pos
 		if !door.Insert(e.Key) {

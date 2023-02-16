@@ -73,17 +73,23 @@ func (l *LSM) MergeTicker() error {
 
 func (l *LSM) Search(key string) []byte {
 	// 先找内存表
-	e := l.memTable.Search(key)
-	if len(e) != 0 {
+	e, status := l.memTable.Search(key)
+	if status == codec.Deleted {
+		return []byte{}
+	}
+	if status == codec.Found {
 		return e
 	}
 
 	// 没找到，再找immutable
 	l.lock.RLock()
 	for i := len(l.immutables) - 1; i >= 0; i-- {
-		e = l.immutables[i].Search(key)
-		fmt.Println(e)
-		if len(e) != 0 {
+		e, status = l.immutables[i].Search(key)
+		if status == codec.Deleted {
+			l.lock.RUnlock()
+			return []byte{}
+		}
+		if status == codec.Found {
 			l.lock.RUnlock()
 			return e
 		}
@@ -91,18 +97,20 @@ func (l *LSM) Search(key string) []byte {
 	l.lock.RUnlock()
 
 	// 再去levels里找
-	e = l.levels.Search(key)
-	fmt.Println(e)
-	if len(e) != 0 {
+	e, status = l.levels.Search(key)
+	if status == codec.Deleted {
+		return []byte{}
+	}
+	if status == codec.Found {
 		return e
 	}
 	return []byte{}
 }
 
-func (l *LSM) Set(key string, value []byte, vertion int64) error {
+func (l *LSM) Set(key string, value []byte) error {
 	// 先插入内存表
-	e := codec.NewEntry(key, value, vertion)
-	err := l.memTable.Add(e)
+	e := codec.NewEntry(key, value)
+	err := l.memTable.Add(&e)
 	if err != nil {
 		fmt.Errorf("LSM Set Entry To MemTable False: %s", err)
 		return err
@@ -122,11 +130,11 @@ func (l *LSM) Set(key string, value []byte, vertion int64) error {
 	return nil
 }
 
-func (l *LSM) Delete(key string, vertion int64) {
+func (l *LSM) Delete(key string) {
 	// 先找内存表
-	e := codec.NewEntry(key, []byte{}, vertion)
+	e := codec.NewEntry(key, []byte{})
 	e.Deleted = true
-	l.memTable.Delete(e)
+	l.memTable.Delete(&e)
 }
 
 func (l *LSM) Close() {

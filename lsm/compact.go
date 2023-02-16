@@ -68,28 +68,18 @@ func (lm *levelManager) mergeSorts(lv int, threshold int) error {
 			continue
 		}
 
-		// 如果发现相同的key，version大的保留
+		// 如果发现相同的key，index大的保留
 		if data[len(data)-1].entry.Key == topData.entry.Key {
-			if topData.entry.Version < data[len(data)-1].entry.Version {
-				p[topData.index]++
-				entry, _ := l.getEntry(topData.index, p[topData.index])
-				if entry == nil {
-					continue
-				}
-				newH.Push(heapData{entry, topData.index})
-				continue
-			} else if topData.entry.Version == data[len(data)-1].entry.Version {
-				if topData.index > data[len(data)-1].index {
-					data[len(data)-1] = topData
-				}
-				p[topData.index]++
-				entry, _ := l.getEntry(topData.index, p[topData.index])
-				if entry == nil {
-					continue
-				}
-				newH.Push(heapData{entry, topData.index})
+			if topData.index > data[len(data)-1].index {
+				data[len(data)-1] = topData
+			}
+			p[topData.index]++
+			entry, _ := l.getEntry(topData.index, p[topData.index])
+			if entry == nil {
 				continue
 			}
+			newH.Push(heapData{entry, topData.index})
+			continue
 
 		}
 		// key不同，直接插入
