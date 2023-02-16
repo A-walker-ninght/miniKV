@@ -27,7 +27,7 @@ func TestSSTableBasic(t *testing.T) {
 	for i := 0; i < 10000; i++ {
 		wg.Add(1)
 		go func(i int) {
-			entry := codec.NewEntry(RandString(10), []byte(RandString(10)), int64(i))
+			entry := codec.NewEntry(RandString(10), []byte(RandString(10)))
 			assert.Nil(t, list.Add(&entry))
 			wg.Done()
 		}(i)

@@ -57,10 +57,8 @@ func (s *Skiplist) Add(data *codec.Entry) error {
 			if comp := strings.Compare(data.Key, next.entry.Key); comp >= 0 {
 				if comp == 0 {
 					// 更新数据
-					if data.Version > next.entry.Version {
-						next.entry = data
-					}
-					break
+					prev.levels[0].entry = data
+					return nil
 				} else {
 					prev = next
 				}
@@ -82,7 +80,7 @@ func (s *Skiplist) Add(data *codec.Entry) error {
 	return nil
 }
 
-func (s *Skiplist) Search(key string) (*codec.Entry, bool) {
+func (s *Skiplist) Search(key string) (*codec.Entry, codec.Status) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
@@ -93,10 +91,10 @@ func (s *Skiplist) Search(key string) (*codec.Entry, bool) {
 		for next := prev.levels[i]; next != nil; next = next.levels[i] {
 			if comp := strings.Compare(key, next.entry.Key); comp >= 0 {
 				if comp == 0 {
-					if next.entry.Deleted {
-						return &codec.Entry{}, false
+					if prev.levels[0].entry.Deleted {
+						return nil, codec.Deleted
 					}
-					return next.entry, true
+					return prev.levels[0].entry, codec.Found
 				} else {
 					prev = next
 				}
@@ -105,7 +103,7 @@ func (s *Skiplist) Search(key string) (*codec.Entry, bool) {
 			}
 		}
 	}
-	return &codec.Entry{}, false
+	return nil, codec.NotFound
 }
 
 func (s *Skiplist) GetCount() int {
