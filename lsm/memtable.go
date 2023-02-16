@@ -38,48 +38,48 @@ func (m *Memtable) initMemTable(filepath string) {
 	m.s = sl
 }
 
-func (m *Memtable) Search(key string) []byte {
+func (m *Memtable) Search(key string) ([]byte, codec.Status) {
 	e, f := m.s.Search(key)
 
-	if !f {
-		return []byte{}
+	if f == codec.Deleted {
+		return []byte{}, codec.Deleted
 	}
-	return e.Value
+	if f == codec.NotFound {
+		return []byte{}, codec.NotFound
+	}
+	return e.Value, codec.Found
 }
 
-func (m *Memtable) Delete(data codec.Entry) error {
+func (m *Memtable) Delete(data *codec.Entry) error {
 	data.Deleted = true
-	err := m.wal.Write(&data)
+	err := m.wal.Write(*data)
 	if err != nil {
 		return err
 	}
 
-	err = m.s.Add(&data)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (m *Memtable) Add(data codec.Entry) error {
-	e := codec.NewEntry(data.Key, data.Value, data.Version)
-	e.Deleted = false
-
-	err := m.wal.Write(&e)
-	if err != nil {
-		return err
-	}
-	err = m.s.Add(&e)
+	err = m.s.Add(data)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (m *Memtable) getAll() (data []codec.Entry) {
+func (m *Memtable) Add(data *codec.Entry) error {
+	err := m.wal.Write(*data)
+	if err != nil {
+		return err
+	}
+	err = m.s.Add(data)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *Memtable) getAll() (data []*codec.Entry) {
 	iter := m.s.NewSkiplistInterator()
 	for iter.First(); iter.Valid(); iter.Next() {
-		data = append(data, *iter.Entry())
+		data = append(data, iter.Entry())
 	}
 	return
 }

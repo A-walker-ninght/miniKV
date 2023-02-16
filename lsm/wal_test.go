@@ -17,8 +17,8 @@ func TestWalBasic(t *testing.T) {
 	keys := []string{}
 	for i := 0; i < 10000; i++ {
 		key, val = fmt.Sprintf("Key%d", i), fmt.Sprintf("Val%d", i)
-		entry := codec.NewEntry(key, []byte(val), int64(i))
-		w.Write(&entry)
+		entry := codec.NewEntry(key, []byte(val))
+		w.Write(entry)
 		res := s.Add(&entry)
 
 		keys = append(keys, key)

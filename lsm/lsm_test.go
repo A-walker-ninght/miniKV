@@ -30,9 +30,9 @@ func TestLSMAdd(t *testing.T) {
 	entrys := []codec.Entry{}
 	for i := 0; i < 10000; i++ {
 		key, value := fmt.Sprintf("key%d", i), []byte(fmt.Sprintf("key%d", i))
-		e := codec.NewEntry(key, value, int64(i))
+		e := codec.NewEntry(key, value)
 		entrys = append(entrys, e)
-		assert.Nil(t, lsm.Set(key, value, int64(i)))
+		assert.Nil(t, lsm.Set(key, value))
 	}
 
 	for i := 0; i < 10000; i++ {
@@ -46,9 +46,9 @@ func Benchmark_LSMAdd(b *testing.B) {
 	entrys := []codec.Entry{}
 	for i := 0; i < b.N; i++ {
 		key, value := fmt.Sprintf("key%d", i), []byte(fmt.Sprintf("key%d", i))
-		e := codec.NewEntry(key, value, int64(i))
+		e := codec.NewEntry(key, value)
 		entrys = append(entrys, e)
-		go assert.Nil(b, lsm.Set(key, value, int64(i)))
+		go assert.Nil(b, lsm.Set(key, value))
 	}
 
 	for i := 0; i < b.N; i++ {
@@ -63,9 +63,9 @@ func TestLSMDelete(t *testing.T) {
 	entrys := []codec.Entry{}
 	for i := 0; i < 10000; i++ {
 		key, value := fmt.Sprintf("key%d", i), []byte(fmt.Sprintf("key%d", i))
-		e := codec.NewEntry(key, value, int64(i))
+		e := codec.NewEntry(key, value)
 		entrys = append(entrys, e)
-		assert.Nil(t, lsm.Set(key, value, int64(i)))
+		assert.Nil(t, lsm.Set(key, value))
 	}
 
 	for i := 0; i < 10000; i++ {
@@ -74,12 +74,11 @@ func TestLSMDelete(t *testing.T) {
 	}
 
 	for i := 0; i < 232; i++ {
-		lsm.Delete(entrys[i].Key, int64(i+10000))
+		lsm.Delete(entrys[i].Key)
 	}
 
 	for i := 0; i < 232; i++ {
 		ss := lsm.Search(entrys[i].Key)
-		fmt.Println(ss)
 		assert.Equal(t, ss, []byte{})
 	}
 }

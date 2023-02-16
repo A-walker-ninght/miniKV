@@ -1,10 +1,10 @@
 package miniKV
 
 import (
+	"encoding/json"
 	"sync"
 	"time"
 
-	"github.com/A-walker-ninght/miniKV/codec"
 	"github.com/A-walker-ninght/miniKV/config"
 	"github.com/A-walker-ninght/miniKV/lsm"
 )
@@ -22,12 +22,13 @@ type request struct {
 	value interface{}
 }
 
-func (r *request) GetKey() string {
+func (r *request) getKey() string {
 	return r.key
 }
 
-func (r *request) GetVal() interface{} {
-	return r.value
+func (r *request) getValue() []byte {
+	v, _ := json.Marshal(r.value)
+	return v
 }
 
 type DB struct {
@@ -70,21 +71,20 @@ func (d *DB) schedule() {
 		case <-d.close:
 			return
 		case r := <-d.writeCh:
-			go d.lsm.Set(r.GetKey(), r.GetVal())
+			go d.lsm.Set(r.getKey(), r.getValue())
 		default:
 		}
 	}
 }
 
 func (d *DB) Get(key string) interface{} {
-	v, f := d.lsm.Search(key)
-	if f {
-		return []byte{}
-	}
+	v := d.lsm.Search(key)
 	if len(v) == 0 {
 		return []byte{}
 	}
-	return codec.BytesToValue(v)
+	var value interface{}
+	json.Unmarshal(v, &value)
+	return value
 }
 
 func (d *DB) Set(key string, value interface{}) {
@@ -92,9 +92,13 @@ func (d *DB) Set(key string, value interface{}) {
 		key:   key,
 		value: value,
 	}
-	go func() {
-		d.writeCh <- r
-	}()
+	for {
+		select {
+		case d.writeCh <- r:
+			return
+		default:
+		}
+	}
 }
 func (d *DB) Del(key string) {
 	d.lsm.Delete(key)
@@ -108,15 +112,15 @@ func (d *DB) Options() config.Config {
 
 func (d *DB) Close() error {
 	for c := range d.writeCh {
-		go d.lsm.Set(c.key, c.value)
+		go d.lsm.Set(c.getKey(), c.getValue())
 	}
 	close(d.checkCh)
 	d.lsm.Close()
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		d.close <- struct{}{}
-		wg.Done()
 	}()
 	wg.Wait()
 	return nil

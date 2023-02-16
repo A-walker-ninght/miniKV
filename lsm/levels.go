@@ -55,7 +55,7 @@ func (l *level) LevelSize() int64 {
 	}
 	return size
 }
-func (l *level) search(key string) []byte {
+func (l *level) search(key string) ([]byte, codec.Status) {
 
 	// 对每一层都进行二分查找，需要从后往前找，因为是追加的
 	for i := len(l.Sstable) - 1; i >= 0; i-- {
@@ -75,19 +75,18 @@ func (l *level) search(key string) []byte {
 			Offset: -1,
 		}
 
-		l, r := 0, len(sst.idxArea.Keys)-1
-		for l <= r {
-			mid := l + (r-l)/2
+		left, right := 0, len(sst.idxArea.Keys)-1
+		for left <= right {
+			mid := left + (right-left)/2
 			if sst.idxArea.Keys[mid] == key {
 				position = sst.idxArea.Pos[key]
 				if position.Deleted {
-					return []byte{}
+					return []byte{}, codec.Deleted
 				}
-				break
 			} else if sst.idxArea.Keys[mid] > key {
-				r = mid - 1
+				right = mid - 1
 			} else if sst.idxArea.Keys[mid] < key {
-				l = mid + 1
+				left = mid + 1
 			}
 		}
 
@@ -101,11 +100,11 @@ func (l *level) search(key string) []byte {
 		_, err := sst.f.(*file.MMapFile).Read(value, position.Offset)
 		if err != nil {
 			fmt.Errorf("levels Search Read Buf False: %s", err)
-			return []byte{}
+			return []byte{}, codec.NotFound
 		}
-		return value
+		return value, codec.Found
 	}
-	return []byte{}
+	return []byte{}, codec.NotFound
 }
 
 func (l *level) getEntry(sstIndex, keyIndex int) (*codec.Entry, bool) {
@@ -122,21 +121,23 @@ func (l *level) getEntry(sstIndex, keyIndex int) (*codec.Entry, bool) {
 	if err != nil {
 		return &codec.Entry{}, false
 	}
-	entry := codec.NewEntry(key, value, postion.Version)
+	entry := codec.NewEntry(key, value)
 	entry.Deleted = postion.Deleted
 	return &entry, true
 }
 
-func (lm *levelManager) Search(key string) []byte {
+func (lm *levelManager) Search(key string) ([]byte, codec.Status) {
 	lm.lock.RLock()
 	defer lm.lock.RUnlock()
 
 	for i := 0; i < len(lm.levels); i++ {
-		value := lm.levels[i].search(key)
-		if len(value) == 0 {
-			continue
+		e, status := lm.levels[i].search(key)
+		if status == codec.Deleted {
+			return []byte{}, codec.Deleted
 		}
-		return value
+		if status == codec.Found {
+			return e, codec.Found
+		}
 	}
-	return []byte{}
+	return []byte{}, codec.NotFound
 }

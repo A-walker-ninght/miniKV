@@ -79,7 +79,7 @@ func (w *Wal) recovery(isCreate bool) *utils.Skiplist {
 	var p int64
 	// var e *codec.Entry 妈的，卡了好久
 	for {
-		var e *codec.Entry
+		var e codec.Entry
 		dataLenBuf := make([]byte, 8)
 		n, _ := w.f.(*file.MMapFile).Read(dataLenBuf, p)
 		if n == 0 {
@@ -99,14 +99,14 @@ func (w *Wal) recovery(isCreate bool) *utils.Skiplist {
 		if err != nil {
 			fmt.Errorf("data Unmarshal False: %s", err)
 		}
-		sl.Add(e)
+		sl.Add(&e)
 		p += int64(n)
 	}
 	w.p = p
 	return sl
 }
 
-func (w *Wal) Write(e *codec.Entry) error {
+func (w *Wal) Write(e codec.Entry) error {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
