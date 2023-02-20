@@ -10,7 +10,9 @@ import (
 	"sync"
 
 	"github.com/A-walker-ninght/miniKV/codec"
+	"github.com/A-walker-ninght/miniKV/config"
 	"github.com/A-walker-ninght/miniKV/file"
+	"github.com/A-walker-ninght/miniKV/tools"
 	"github.com/A-walker-ninght/miniKV/utils"
 )
 
@@ -56,7 +58,10 @@ type Position struct {
 	Deleted bool  // Key 已经被删除
 }
 
-func OpenSSTable(filepath string) (*SSTable, error) {
+func OpenSSTable(fileName string) (*SSTable, error) {
+	config := config.GetConfig()
+	filepath := tools.GetFilePath(config.DataDir, fileName)
+
 	info, _ := os.Stat(filepath)
 	if info == nil {
 		return nil, errors.New("The SSTable file is not exist!")
@@ -102,7 +107,10 @@ func (sst *SSTable) openSSTable() {
 }
 
 // 创建sst文件，写入磁盘，同时保存结构体
-func CreateNewSSTable(data []codec.Entry, filepath string, size int64) (*SSTable, error) {
+func CreateNewSSTable(data []codec.Entry, fileName string, size int64) (*SSTable, error) {
+	config := config.GetConfig()
+	filepath := tools.GetFilePath(config.DataDir, fileName)
+	
 	fd, err := file.OpenMMapFile(filepath, size)
 	if err != nil {
 		return nil, errors.New("Create SSTable False!")

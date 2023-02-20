@@ -21,15 +21,16 @@ type level struct {
 	LevelCount int
 }
 
-func NewLevelManager(lvFilePath string, levelNum int, lSizes config.LevelSize) *levelManager {
+func NewLevelManager() *levelManager {
+	config := config.GetConfig()
 	lm := &levelManager{
-		levels:    make([]*level, levelNum),
+		levels:    make([]*level, config.MaxLevelNum),
 		lock:      &sync.RWMutex{},
-		levelSize: lSizes,
+		levelSize: config.LevelSize,
 	}
 
-	lm.levelfile = NewlevelFile(levelNum)
-	for i := 0; i < levelNum; i++ {
+	lm.levelfile = NewlevelFile()
+	for i := 0; i < config.MaxLevelNum; i++ {
 		lm.levels[i] = InitLevel(i, lm.levelfile.levelsfile[i].SSTablePaths)
 	}
 	return lm

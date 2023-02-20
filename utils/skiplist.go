@@ -57,6 +57,9 @@ func (s *Skiplist) Add(data *codec.Entry) error {
 			if comp := strings.Compare(data.Key, next.entry.Key); comp >= 0 {
 				if comp == 0 {
 					// 更新数据
+					if prev.levels[0].entry.Key != data.Key {
+						continue
+					}
 					prev.levels[0].entry = data
 					return nil
 				} else {
@@ -91,6 +94,9 @@ func (s *Skiplist) Search(key string) (*codec.Entry, codec.Status) {
 		for next := prev.levels[i]; next != nil; next = next.levels[i] {
 			if comp := strings.Compare(key, next.entry.Key); comp >= 0 {
 				if comp == 0 {
+					if prev.levels[0].entry.Key != key {
+						continue
+					}
 					if prev.levels[0].entry.Deleted {
 						return nil, codec.Deleted
 					}
@@ -122,7 +128,10 @@ func (s *Skiplist) FindNode(key string) *Node {
 		for next := prev.levels[i]; next != nil; next = next.levels[i] {
 			if comp := strings.Compare(key, next.entry.Key); comp >= 0 {
 				if comp == 0 {
-					return next
+					if prev.levels[0].entry.Key != key {
+						continue
+					}
+					return prev.levels[0]
 				} else {
 					prev = next
 				}

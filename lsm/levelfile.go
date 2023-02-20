@@ -9,7 +9,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/A-walker-ninght/miniKV/config"
 	"github.com/A-walker-ninght/miniKV/file"
+	"github.com/A-walker-ninght/miniKV/tools"
 )
 
 type levelFile struct {
@@ -23,29 +25,33 @@ type levelfile struct {
 	p            int64 // 指针
 }
 
-func NewlevelFile(maxLv int) *levelFile {
+func NewlevelFile() *levelFile {
+	config := config.GetConfig()
 	lvF := &levelFile{
-		levelsfile: make([]*levelfile, maxLv),
+		levelsfile: make([]*levelfile, config.MaxLevelNum),
 	}
-	lvF.initLevelFile(maxLv)
+	lvF.initLevelFile(config.MaxLevelNum, config.LevelDir)
 	return lvF
 }
 
-func (l *levelFile) initLevelFile(maxlv int) {
-	lvs, _ := ioutil.ReadDir("../logFile/level/")
+func (l *levelFile) initLevelFile(maxlv int, lvDir string) {
+	lvs, _ := ioutil.ReadDir(lvDir)
 	if len(lvs) == 0 {
 		for i := 0; i < maxlv; i++ {
-			filepath := strings.Builder{}
-			filepath.WriteString("../logFile/level/level_")
-			filepath.WriteString(strconv.Itoa(i))
-			filepath.WriteString(".log")
-			l.levelsfile[i] = newlevelfile(filepath.String())
+			fileName := strings.Builder{}
+			fileName.WriteString("level_")
+			fileName.WriteString(strconv.Itoa(i))
+			fileName.WriteString(".log")
+
+			filepath := tools.GetFilePath(lvDir, fileName.String())
+			l.levelsfile[i] = newlevelfile(filepath)
 		}
 		return
 	}
 	for i, lv := range lvs {
 		filepath := strings.Builder{}
-		filepath.WriteString("../logFile/level/")
+		filepath.WriteString(lvDir)
+		filepath.WriteString("/")
 		filepath.WriteString(lv.Name())
 		l.levelsfile[i] = newlevelfile(filepath.String())
 	}

@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/A-walker-ninght/miniKV/codec"
+	"github.com/A-walker-ninght/miniKV/config"
+	"github.com/A-walker-ninght/miniKV/tools"
 )
 
 func (lm *levelManager) Merge(threshold int) error {
@@ -109,14 +111,16 @@ func (lm *levelManager) mergeSorts(lv int, threshold int) error {
 
 // 追加到lv层末尾
 func (lm *levelManager) appendSSTableToLevel(data []heapData, lv int) error {
+	config := config.GetConfig()
 	s := strings.Builder{}
-	s.WriteString("../logFile/sst/")
 	s.WriteString("sst_")
 	s.WriteString(strconv.Itoa(lv))
 	s.WriteString("_")
 	s.WriteString(strconv.Itoa(int(time.Now().Unix())))
 	s.WriteString(".sst")
-	sstPath := s.String()
+	sstName := s.String()
+
+	sstPath := tools.GetFilePath(config.DataDir, sstName)
 	entrys := make([]codec.Entry, len(data))
 	for i := 0; i < len(data); i++ {
 		entrys[i] = *data[i].entry

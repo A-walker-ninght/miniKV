@@ -17,10 +17,9 @@ import (
 // |dataLen data | dataLen data | dataLen data |
 // dataLen : int64
 type Wal struct {
-	f        file.IOSelector
-	lock     *sync.RWMutex
-	filepath string
-	p        int64 // 文件指针
+	f    file.IOSelector
+	lock *sync.RWMutex
+	p    int64 // 文件指针
 }
 
 // 从磁盘读取，初始化Wal
@@ -32,8 +31,8 @@ func (w *Wal) InitWal(filesize int64, filepath string) *utils.Skiplist {
 		log.Printf("Loading wal.log consume time: %v\n", end)
 	}()
 	// 获取信息
-	w.filepath = filepath
-	info, _ := os.Stat(w.filepath)
+	fmt.Println(filepath)
+	info, _ := os.Stat(filepath)
 	// info为空，创建wal
 	if info == nil {
 		fd, err := file.OpenMMapFile(filepath, filesize)
@@ -42,7 +41,6 @@ func (w *Wal) InitWal(filesize int64, filepath string) *utils.Skiplist {
 			return nil
 		}
 		w.f = fd
-		w.filepath = filepath
 		w.lock = &sync.RWMutex{}
 		return w.recovery(true)
 	}
@@ -59,7 +57,6 @@ func (w *Wal) InitWal(filesize int64, filepath string) *utils.Skiplist {
 	}
 
 	w.f = fd
-	w.filepath = filepath
 	w.lock = &sync.RWMutex{}
 
 	return w.recovery(false)

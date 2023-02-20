@@ -32,9 +32,7 @@ func (r *request) getValue() []byte {
 }
 
 type DB struct {
-	lock    *sync.RWMutex
 	lsm     *lsm.LSM
-	opt     *config.Config
 	writeCh chan *request
 	checkCh chan struct{}
 	close   chan struct{}
@@ -42,7 +40,7 @@ type DB struct {
 
 var db *DB
 
-func init() {
+func Init() {
 	con := config.Config{
 		DataDir: "./logFile/sst/",
 		WalDir:  "./logFile/wal/",
@@ -54,14 +52,14 @@ func init() {
 		CheckInterval: 3 * time.Microsecond,
 		MaxLevelNum:   7,
 	}
+
+	config.InitConfig(&con)
 	db = &DB{
-		lock:    &sync.RWMutex{},
-		opt:     &con,
 		writeCh: make(chan *request, 20),
 		checkCh: make(chan struct{}, 5),
 		close:   make(chan struct{}, 0),
 	}
-	db.lsm = lsm.NewLSM(con)
+	db.lsm = lsm.NewLSM()
 	go db.schedule()
 }
 
@@ -72,7 +70,6 @@ func (d *DB) schedule() {
 			return
 		case r := <-d.writeCh:
 			go d.lsm.Set(r.getKey(), r.getValue())
-		default:
 		}
 	}
 }
@@ -92,22 +89,10 @@ func (d *DB) Set(key string, value interface{}) {
 		key:   key,
 		value: value,
 	}
-	for {
-		select {
-		case d.writeCh <- r:
-			return
-		default:
-		}
-	}
+	d.writeCh <- r
 }
 func (d *DB) Del(key string) {
 	d.lsm.Delete(key)
-}
-
-func (d *DB) Options() config.Config {
-	d.lock.RLock()
-	defer d.lock.RUnlock()
-	return *d.opt
 }
 
 func (d *DB) Close() error {
