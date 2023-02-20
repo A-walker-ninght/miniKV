@@ -15,8 +15,8 @@ var (
 		LSizes: []int{2, 8, 16, 32, 64, 128, 256},
 	}
 	opt = config.Config{
-		WalDir:        "../logFile/wal/",
-		DataDir:       "../logFile/sst/",
+		WalDir:        "../logFile/wal",
+		DataDir:       "../logFile/sst",
 		PartSize:      10,
 		Threshold:     1000,
 		CheckInterval: 1 * time.Microsecond,
@@ -25,8 +25,12 @@ var (
 	}
 )
 
+func Init() {
+	config.InitConfig(&opt)
+}
 func TestLSMAdd(t *testing.T) {
-	lsm := NewLSM(opt)
+	Init()
+	lsm := NewLSM()
 	entrys := []codec.Entry{}
 	for i := 0; i < 10000; i++ {
 		key, value := fmt.Sprintf("key%d", i), []byte(fmt.Sprintf("key%d", i))
@@ -37,12 +41,13 @@ func TestLSMAdd(t *testing.T) {
 
 	for i := 0; i < 10000; i++ {
 		value := lsm.Search(entrys[i].Key)
-		assert.Equal(t, value, entrys[i].Value)
+		assert.Equal(t, string(value), string(entrys[i].Value))
 	}
 }
 
 func Benchmark_LSMAdd(b *testing.B) {
-	lsm := NewLSM(opt)
+	Init()
+	lsm := NewLSM()
 	entrys := []codec.Entry{}
 	for i := 0; i < b.N; i++ {
 		key, value := fmt.Sprintf("key%d", i), []byte(fmt.Sprintf("key%d", i))
@@ -58,7 +63,8 @@ func Benchmark_LSMAdd(b *testing.B) {
 }
 
 func TestLSMDelete(t *testing.T) {
-	lsm := NewLSM(opt)
+	Init()
+	lsm := NewLSM()
 
 	entrys := []codec.Entry{}
 	for i := 0; i < 10000; i++ {

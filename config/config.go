@@ -1,6 +1,7 @@
 package config
 
 import (
+	"sync"
 	"time"
 )
 
@@ -26,6 +27,7 @@ import (
 type Config struct {
 	DataDir       string        // 数据目录
 	WalDir        string        // wal目录
+	LevelDir      string        // level目录
 	LevelSize     LevelSize     // 每层大小
 	PartSize      int           // 每层中 SsTable 表数量的阈值，该层 SsTable 将会被压缩到下一层
 	Threshold     int           // 内存表的 kv 最大数量，超出这个阈值，内存表将会被保存到 SsTable 中
@@ -35,4 +37,17 @@ type Config struct {
 
 type LevelSize struct {
 	LSizes []int
+}
+
+var once *sync.Once = &sync.Once{}
+var config *Config
+
+func InitConfig(con *Config) {
+	once.Do(func() {
+		config = con
+	})
+}
+
+func GetConfig() *Config {
+	return config
 }

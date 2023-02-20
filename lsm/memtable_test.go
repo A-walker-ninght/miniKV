@@ -9,7 +9,7 @@ import (
 )
 
 func TestMemtableBasicAcid(t *testing.T) {
-	m := NewMemTable(1000, "test_wal.log")
+	m := NewMemTable("test_wal.log")
 	for i := 0; i < 100; i++ {
 		key, value := fmt.Sprintf("key%d", i), []byte(fmt.Sprintf("key%d", i))
 		e := codec.NewEntry(key, value)

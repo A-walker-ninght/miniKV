@@ -11,6 +11,7 @@ import (
 
 	"github.com/A-walker-ninght/miniKV/codec"
 	"github.com/A-walker-ninght/miniKV/config"
+	"github.com/A-walker-ninght/miniKV/tools"
 )
 
 type LSM struct {
@@ -19,43 +20,41 @@ type LSM struct {
 	levels     *levelManager
 	stopCh     chan struct{} // 关闭
 	checkCh    chan struct{}
-	options    *config.Config
 	lock       *sync.RWMutex
 }
 
 // 增删操作在memtable里完成。
 // 增：略
 // 删除：如果key存在，将Deleted = true; 如果没有key，则新增一条，并将Deleted = true
-func NewLSM(opt config.Config) *LSM {
+func NewLSM() *LSM {
+	config := config.GetConfig()
 	lsm := &LSM{
 		lock:     &sync.RWMutex{},
-		options:  &opt,
-		levels:   NewLevelManager("../logFile/level/lv.log", opt.MaxLevelNum, opt.LevelSize),
+		levels:   NewLevelManager(),
 		stopCh:   make(chan struct{}, 0),
 		checkCh:  make(chan struct{}, 1),
-		memTable: NewMemTable(opt.Threshold, "../logFile/wal/wal.log"),
+		memTable: NewMemTable("wal.log"),
 	}
-	imFiles, err := ioutil.ReadDir(opt.WalDir)
+	imFiles, err := ioutil.ReadDir(config.WalDir)
 	if err != nil {
 		fmt.Errorf("LSM ImmuTable recover False: %s", err)
 		return lsm
 	}
+
 	for _, imfile := range imFiles {
-		s := strings.Builder{}
-		s.WriteString("../logFile/wal/")
-		s.WriteString(imfile.Name())
-		if s.String() == "../logFile/wal/wal.log" {
+		if imfile.Name() == "wal.log" {
 			continue
 		}
 
-		lsm.immutables = append(lsm.immutables, NewMemTable(opt.Threshold, s.String()))
+		lsm.immutables = append(lsm.immutables, NewMemTable(imfile.Name()))
 	}
 	go lsm.MergeTicker()
 	return lsm
 }
 
 func (l *LSM) MergeTicker() error {
-	timer := time.NewTimer(l.options.CheckInterval)
+	config := config.GetConfig()
+	timer := time.NewTimer(config.CheckInterval)
 	defer timer.Stop()
 
 	for {
@@ -121,7 +120,7 @@ func (l *LSM) Set(key string, value []byte) error {
 	if newM != nil {
 		l.lock.Lock()
 		l.immutables = append(l.immutables, newM)
-		mem := NewMemTable(l.options.Threshold, "../logFile/wal/wal.log")
+		mem := NewMemTable("wal.log")
 		l.memTable = mem
 		l.lock.Unlock()
 		return nil
@@ -148,17 +147,20 @@ func (l *LSM) Close() {
 }
 
 func (l *LSM) Check() {
+	config := config.GetConfig()
 	go l.AppendSSTableToZero()
-	go l.levels.Merge(l.options.PartSize)
+	go l.levels.Merge(config.PartSize)
 }
 
 func (l *LSM) AppendSSTableToZero() error {
 	l.lock.Lock()
 	defer l.lock.Unlock()
+	config := config.GetConfig()
 
 	for _, immutable := range l.immutables {
 		// 每个immutable生成一个sst文件追加到尾部
 		sstPath := "sst_0_"
+		fmt.Println(immutable)
 		iter := immutable.s.NewSkiplistInterator()
 		var data []codec.Entry
 		idx := int(time.Now().Unix())
@@ -168,11 +170,12 @@ func (l *LSM) AppendSSTableToZero() error {
 		}
 
 		p := strings.Builder{}
-		p.WriteString("../logFile/sst/")
 		p.WriteString(sstPath)
 		p.WriteString(strconv.Itoa(idx))
 		p.WriteString(".sst")
-		filepath := p.String()
+
+		filepath := tools.GetFilePath(config.DataDir, p.String())
+
 		// 路径根据level来定，例如：level0 第一个sst_0_0.sst，内存表插入第一层
 		sst, err := CreateNewSSTable(data, filepath, 100000)
 		if err != nil {

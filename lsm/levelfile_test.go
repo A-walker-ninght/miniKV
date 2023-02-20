@@ -7,11 +7,11 @@ import (
 )
 
 func TestInit(t *testing.T) {
-	l := NewlevelFile(7)
+	l := NewlevelFile()
 	l.Write("sst_0_1.sst", 0)
 	fmt.Println(l.levelsfile[0].SSTablePaths)
 	fmt.Println(l.levelsfile[0].p)
-	l = NewlevelFile(7)
+	l = NewlevelFile()
 	fmt.Println(l.levelsfile[0].SSTablePaths)
 	fmt.Println(l.levelsfile[0].p)
 }

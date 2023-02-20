@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/A-walker-ninght/miniKV/codec"
+	"github.com/A-walker-ninght/miniKV/config"
+	"github.com/A-walker-ninght/miniKV/tools"
 	"github.com/A-walker-ninght/miniKV/utils"
 )
 
@@ -18,12 +20,14 @@ type Memtable struct {
 	lock      *sync.RWMutex
 }
 
-func NewMemTable(threshold int, filepath string) *Memtable {
+func NewMemTable(fileName string) *Memtable {
+	config := config.GetConfig()
 	m := &Memtable{
 		wal:       &Wal{},
-		threshold: threshold,
+		threshold: config.Threshold,
 		lock:      &sync.RWMutex{},
 	}
+	filepath := tools.GetFilePath(config.WalDir, fileName)
 	m.initMemTable(filepath)
 	return m
 }
@@ -96,11 +100,11 @@ func (m *Memtable) Convert() *Memtable {
 	}
 	id := time.Now().Unix()
 	s := strings.Builder{}
-	s.WriteString("../logFile/wal/wal_")
 	s.WriteString(strconv.Itoa(int(id)))
 	s.WriteString(".iog")
-	filepath := s.String()
-	newM := NewMemTable(m.threshold, filepath)
+
+	fileName := s.String()
+	newM := NewMemTable(fileName)
 	data := m.getAll()
 	for _, e := range data {
 		newM.Add(e)

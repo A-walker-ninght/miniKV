@@ -12,7 +12,7 @@ import (
 func TestWalBasic(t *testing.T) {
 	key, val := "", ""
 	w := &Wal{}
-	s := w.InitWal(10000, "../logFile/wal/wal.log")
+	s := w.InitWal(10000, "wal.log")
 
 	keys := []string{}
 	for i := 0; i < 10000; i++ {
